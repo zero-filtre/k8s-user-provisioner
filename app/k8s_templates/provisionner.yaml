@@ -1,0 +1,40 @@
+# Description: Provisionner template for k8s cluster
+
+#Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: { { username } }
+
+---
+#Service Account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: { { username } }
+  namespace: { { username } }
+subjects:
+  - kind: User
+    name: https://keycloak.zerofiltre.tech/auth/realms/zerofiltre-k8s-oidc-authentication#{{user_id}}
+    apiGroup: rbac.authorization.k8s.io
+
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+
+
+---
+# Ressource quotas
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: resource-limits
+  namespace: your-namespace
+spec:
+  hard:
+    pods: "10"
+    requests.cpu: "4"
+    requests.memory: 4Gi
+    limits.cpu: "8"
+    limits.memory: 8Gi

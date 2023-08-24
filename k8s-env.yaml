@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: zerofiltretech-${env_name}
+  name: zerofiltretech-approvisionner-${env_name}
+spec:
+  minReadySeconds: 30
+  progressDeadlineSeconds: 120
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zerofiltretech-approvisionner-${env_name}
+  template:
+    metadata:
+      labels:
+        app: zerofiltretech-approvisionner-${env_name}
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "internal-app"
+        vault.hashicorp.com/agent-inject-secret-config: "${env_name}/data/zerofiltre-approvisionner"
+        vault.hashicorp.com/agent-inject-template-config: |
+          {{- with secret "${env_name}/data/zerofiltre-approvisionner" -}}
+            export VERIFICATION_TOKEN="{{ .Data.data.VERIFICATION_TOKEN}}"
+            export KEYCLOAK_BASE_URL="{{ .Data.data.KEYCLOAK_BASE_URL }}"
+            export KEYCLOAK_REALM="{{ .Data.data.KEYCLOAK_REALM }}"
+            export KEYCLOAK_CLIENT_ID="{{ .Data.data.KEYCLOAK_CLIENT_ID }}"
+            export KEYCLOAK_CLIENT_SECRET="{{ .Data.data.KEYCLOAK_CLIENT_SECRET }}"
+          {{- end -}}
+    spec:
+      serviceAccountName: internal-app
+      containers:
+        - name: zerofiltretech-approvisionner-${env_name}
+          image: imzerofiltre/zerofiltretech-approvisionner:0.0.1
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: ${requests_cpu}
+              memory: ${requests_memory}
+            limits:
+              cpu: ${limits_cpu}
+              memory: ${limits_memory}
+          ports:
+            - containerPort: 5000
+          
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 100000
+            periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: zerofiltretech-${env_name}
+  name: zerofiltretech-approvisionner-${env_name}
+spec:
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000
+  selector:
+    app: zerofiltretech-approvisionner-${env_name}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: zerofiltretech-${env_name}
+  name: zerofiltretech-approvisionner-${env_name}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    # add an annotation indicating the issuer to use.
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  rules:
+    - host: ${domain_name}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: zerofiltretech-approvisionner-${env_name}
+                port:
+                  number: 80
+  tls: # < placing a host in the TLS config will indicate a certificate should be created
+    - hosts:
+        - ${domain_name}
+      secretName: approvisionner-zerofiltre-ingress-cert # < cert-manager will store the created certificate in this secret.
