@@ -12,14 +12,12 @@ def generate_password(length=12):
     return ''.join(random.choice(characters) for _ in range(length))
 
 
-def create_keycloak_user(email):
+def create_keycloak_user(username, email):
 
     KEYCLOAK_BASE_URL = os.environ.get('KEYCLOAK_BASE_URL')
     REALM = os.environ.get('KEYCLOAK_REALM')
     CLIENT_ID = os.environ.get('KEYCLOAK_CLIENT_ID')
     CLIENT_SECRET = os.environ.get('KEYCLOAK_CLIENT_SECRET')
-
-    username = email.split('@')[0]
 
     keycloak_admin = KeycloakAdmin(
         server_url=KEYCLOAK_BASE_URL,
