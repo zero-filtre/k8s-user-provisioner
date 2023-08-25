@@ -9,4 +9,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 5000
 
-ENTRYPOINT ["sh", "-c", "source /vault/secrets/config && python run.py"]
+RUN chmod 755 entrypoint.sh
+
+ENTRYPOINT ["./entrypoint.sh"]
