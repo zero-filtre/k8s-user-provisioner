@@ -48,23 +48,25 @@ def create_keycloak_user(username, email):
 
 def apply_k8s_config(username, user_id):
 
-    k8s_file = 'k8s_templates/provisionner.yaml'
+    k8s_file = 'app/k8s_templates/provisionner.yaml'
 
     template = None
 
     with open(k8s_file) as f:
         template = f.read()
 
-    template.replace("{{username}}", username)
-    template.replace("{{user_id}}", user_id)
+    template = template.replace("username", username)
+    template = template.replace("user_id", user_id)
 
-    template = yaml.safe_load(template)
+    templates = yaml.safe_load_all(template)
 
     config.load_kube_config_from_dict(
-        json.loads(os.environ.get('KUBE_CONFIG')))
+            json.loads(os.environ.get('KUBE_CONFIG')))
 
-    k8s_client = client.ApiClient()
+    for template in templates:
 
-    utils.create_from_dict(k8s_client, template)
+        k8s_client = client.ApiClient()
+
+        utils.create_from_dict(k8s_client, template)
 
     return True

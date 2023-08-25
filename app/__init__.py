@@ -17,23 +17,27 @@ def aprovisionner():
 
     expected_token = os.environ.get('VERIFICATION_TOKEN')
 
-    # if token != expected_token:
-    #     return {'message': 'Token invalide'}, 401
+    if token != expected_token:
+        return {'message': 'Token invalide'}, 401
 
     data = request.get_json()
     email = data.get('email')
     full_name = data.get('full_name')
 
-
+    username = None
 
     if not email:
-        return {'message': 'Email manquant'}, 400
-
-    if not full_name:
-        return {'message': 'Nom complet manquant'}, 400
-    
-    username = slugify(full_name)
-    
+        
+        if not full_name:
+            return {'message': 'Email et Nom complet manquants'}, 400
+        
+    if email:
+        username = email.split('@')[0]
+    else:
+        pf = full_name.replace(" ", "_")
+        pf = pf.lower()
+        username = slugify(pf)
+        
     user_data = create_keycloak_user(username, email)
 
     user_id, password = user_data
@@ -43,7 +47,8 @@ def aprovisionner():
     return {
         'message': 'Utilisateur créé',
         'user_id': user_id,
-        'password': password
+        'password': password,
+        'username': username
     }
 
 if __name__ == '__main__':
