@@ -2,6 +2,7 @@ import string
 import random
 import os
 import yaml
+import json
 from keycloak import KeycloakAdmin
 from kubernetes import client, config, utils
 
@@ -61,7 +62,9 @@ def apply_k8s_config(username, user_id):
 
     template = yaml.safe_load(template)
 
-    config.load_kube_config()
+    config.load_kube_config_from_dict(
+        json.loads(os.environ.get('KUBE_CONFIG')))
+
     k8s_client = client.ApiClient()
 
     utils.create_from_dict(k8s_client, template)
