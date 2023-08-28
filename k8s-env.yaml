@@ -25,7 +25,7 @@ spec:
             KEYCLOAK_REALM="{{ .Data.data.KEYCLOAK_REALM }}"
             KEYCLOAK_CLIENT_ID="{{ .Data.data.KEYCLOAK_CLIENT_ID }}"
             KEYCLOAK_CLIENT_SECRET="{{ .Data.data.KEYCLOAK_CLIENT_SECRET }}"
-            KUBE_CONFIG="{{ .Data.data.KUBE_CONFIG }}"
+            KUBE_CONFIG={{ .Data.data.KUBE_CONFIG }}
           {{- end -}}
     spec:
       serviceAccountName: internal-app
