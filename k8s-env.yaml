@@ -20,12 +20,12 @@ spec:
         vault.hashicorp.com/agent-inject-secret-config: "${env_name}/data/zerofiltre-approvisionner"
         vault.hashicorp.com/agent-inject-template-config: |
           {{- with secret "${env_name}/data/zerofiltre-approvisionner" -}}
-            export VERIFICATION_TOKEN="{{ .Data.data.VERIFICATION_TOKEN}}"
-            export KEYCLOAK_BASE_URL="{{ .Data.data.KEYCLOAK_BASE_URL }}"
-            export KEYCLOAK_REALM="{{ .Data.data.KEYCLOAK_REALM }}"
-            export KEYCLOAK_CLIENT_ID="{{ .Data.data.KEYCLOAK_CLIENT_ID }}"
-            export KEYCLOAK_CLIENT_SECRET="{{ .Data.data.KEYCLOAK_CLIENT_SECRET }}"
-            export KUBE_CONFIG="{{ .Data.data.KUBE_CONFIG }}"
+            VERIFICATION_TOKEN="{{ .Data.data.VERIFICATION_TOKEN}}"
+            KEYCLOAK_BASE_URL="{{ .Data.data.KEYCLOAK_BASE_URL }}"
+            KEYCLOAK_REALM="{{ .Data.data.KEYCLOAK_REALM }}"
+            KEYCLOAK_CLIENT_ID="{{ .Data.data.KEYCLOAK_CLIENT_ID }}"
+            KEYCLOAK_CLIENT_SECRET="{{ .Data.data.KEYCLOAK_CLIENT_SECRET }}"
+            KUBE_CONFIG="{{ .Data.data.KUBE_CONFIG }}"
           {{- end -}}
     spec:
       serviceAccountName: internal-app
@@ -59,7 +59,7 @@ metadata:
 spec:
   ports:
     - protocol: TCP
-      port: 80
+      port: 5000
       targetPort: 5000
   selector:
     app: zerofiltretech-approvisionner-${env_name}
@@ -84,7 +84,7 @@ spec:
               service:
                 name: zerofiltretech-approvisionner-${env_name}
                 port:
-                  number: 80
+                  number: 5000
   tls: # < placing a host in the TLS config will indicate a certificate should be created
     - hosts:
         - ${domain_name}
