@@ -10,8 +10,8 @@ app = Flask(__name__)
 def home():
     return "Hello"
 
-@app.route('/aprovisionner', methods=['POST'])
-def aprovisionner():
+@app.route('/approvisionner', methods=['POST'])
+def approvisionner():
 
     token = request.headers.get('Authorization')
 

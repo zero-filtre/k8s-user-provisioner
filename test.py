@@ -1,12 +1,12 @@
 import requests, os
 
-url = 'http://127.0.0.1:5000/aprovisionner'
+url = 'https://approvisionner-dev.zerofiltre.tech/approvisionner'
 headers = {
-    'Authorization': os.environ.get('VERIFICATION_TOKEN'),
+    'Authorization': "zxj,flh344,34xoaxoxaa",
     'Content-Type': 'application/json'
 }
 data = {
-    'email': 'toto@email.com'
+    'email': '@email.com'
 }
 
 response = requests.post(url, headers=headers, json=data)
