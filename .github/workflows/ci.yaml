@@ -16,14 +16,14 @@ jobs:
     env:
       KUBE_CONFIG : ${{ secrets.KUBE_CONFIG }}
       env_name: ${{startsWith(github.ref, 'refs/heads/release-') && 'prod' || 'dev'}}
-      api_host : ${{startsWith(github.ref, 'refs/heads/release-') && 'approvisionner.zerofiltre.tech' || 'approvisionner-dev.zerofiltre.tech'}}
+      api_host : ${{startsWith(github.ref, 'refs/heads/release-') && 'provisioner.zerofiltre.tech' || 'provisioner-dev.zerofiltre.tech'}}
       DOCKER_TAG_SUFFIX: ${{startsWith(github.ref, 'refs/heads/release-') && 'stable' || 'unstable'}}
       replicas : ${{startsWith(github.ref, 'refs/heads/release-') && 1 || 1 }}
       requests_cpu : ${{startsWith(github.ref, 'refs/heads/release-') && 0.1 || 0.1 }}
       requests_memory : ${{startsWith(github.ref, 'refs/heads/release-') && '0.5Gi' || '0.5Gi' }}
       limits_cpu : ${{startsWith(github.ref, 'refs/heads/release-') && 0.5 || 0.5 }}
       limits_memory : ${{startsWith(github.ref, 'refs/heads/release-') && '1.5Gi' || '1Gi' }}
-      domain_name : ${{startsWith(github.ref, 'refs/heads/release-') && 'approvisionner.zerofiltre.tech' || 'approvisionner-dev.zerofiltre.tech'}}
+      domain_name : ${{startsWith(github.ref, 'refs/heads/release-') && 'provisioner.zerofiltre.tech' || 'provisioner-dev.zerofiltre.tech'}}
       
 
 
@@ -69,7 +69,7 @@ jobs:
       with:
         context: .
         push: true
-        tags: imzerofiltre/zerofiltretech-approvisionner:${{ github.run_number }}_${{ env.DOCKER_TAG_SUFFIX }}
+        tags: imzerofiltre/zerofiltretech-provisioner:${{ github.run_number }}_${{ env.DOCKER_TAG_SUFFIX }}
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache-new
     
@@ -86,11 +86,11 @@ jobs:
     - name: Deploy to k8s
       run: |
         kubectl apply -f k8s.yml
-        kubectl set image deployment/zerofiltretech-approvisionner-${{ env.env_name }} zerofiltretech-approvisionner-${{ env.env_name }}=imzerofiltre/zerofiltretech-approvisionner:${{ github.run_number }}_${{ env.DOCKER_TAG_SUFFIX }} -n zerofiltretech-${{ env.env_name }}
-        kubectl annotate deployment zerofiltretech-approvisionner-${{ env.env_name }} kubernetes.io/change-cause="version change to: ${{ github.run_number }}_${{ env.DOCKER_TAG_SUFFIX }} " -n zerofiltretech-${{ env.env_name }} --overwrite=true
-        if ! kubectl rollout status -w deployment/zerofiltretech-approvisionner-${{ env.env_name }} -n zerofiltretech-${{ env.env_name }}; then
-              kubectl rollout undo deployment.v1.apps/zerofiltretech-approvisionner-${{ env.env_name }} -n zerofiltretech-${{ env.env_name }}
-              kubectl rollout status deployment/zerofiltretech-approvisionner-${{ env.env_name }} -n zerofiltretech-${{ env.env_name }}
+        kubectl set image deployment/zerofiltretech-provisioner-${{ env.env_name }} zerofiltretech-provisioner-${{ env.env_name }}=imzerofiltre/zerofiltretech-provisioner:${{ github.run_number }}_${{ env.DOCKER_TAG_SUFFIX }} -n zerofiltretech-${{ env.env_name }}
+        kubectl annotate deployment zerofiltretech-provisioner-${{ env.env_name }} kubernetes.io/change-cause="version change to: ${{ github.run_number }}_${{ env.DOCKER_TAG_SUFFIX }} " -n zerofiltretech-${{ env.env_name }} --overwrite=true
+        if ! kubectl rollout status -w deployment/zerofiltretech-provisioner-${{ env.env_name }} -n zerofiltretech-${{ env.env_name }}; then
+              kubectl rollout undo deployment.v1.apps/zerofiltretech-provisioner-${{ env.env_name }} -n zerofiltretech-${{ env.env_name }}
+              kubectl rollout status deployment/zerofiltretech-provisioner-${{ env.env_name }} -n zerofiltretech-${{ env.env_name }}
               exit 1
         fi
         
