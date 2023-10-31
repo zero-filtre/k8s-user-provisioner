@@ -33,6 +33,8 @@ def provisioner():
         
     if email:
         username = email.split('@')[0]
+        username = username.replace(".", "_")
+        username = slugify(username)
     else:
         pf = full_name.replace(" ", "_")
         pf = pf.lower()
