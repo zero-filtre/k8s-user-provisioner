@@ -48,7 +48,7 @@ spec:
               path: /
               port: 5000
             initialDelaySeconds: 100000
-            periodSeconds: 10
+            periodSeconds: 300
 
 ---
 apiVersion: v1
