@@ -45,6 +45,29 @@ def create_keycloak_user(username, email):
 
     return user_id, generated_password
 
+def delete_keycloak_user(username):
+
+    KEYCLOAK_BASE_URL = os.environ.get('KEYCLOAK_BASE_URL')
+    REALM = os.environ.get('KEYCLOAK_REALM')
+    CLIENT_ID = os.environ.get('KEYCLOAK_CLIENT_ID')
+    CLIENT_SECRET = os.environ.get('KEYCLOAK_CLIENT_SECRET')
+
+    keycloak_admin = KeycloakAdmin(
+        server_url=KEYCLOAK_BASE_URL,
+        client_id=CLIENT_ID,
+        client_secret_key=CLIENT_SECRET,
+        realm_name=REALM,
+        verify=True
+    )
+
+    user_id = keycloak_admin.get_user_id(username)
+
+    if user_id:
+        keycloak_admin.delete_user(user_id)
+
+    return user_id
+
+
 
 def apply_k8s_config(username, user_id):
 
@@ -68,5 +91,19 @@ def apply_k8s_config(username, user_id):
         k8s_client = client.ApiClient()
 
         utils.create_from_dict(k8s_client, template)
+
+    return True
+
+
+
+def delete_k8s_namespace(username):
+
+    config.load_kube_config_from_dict(
+            json.loads(os.environ.get('KUBE_CONFIG')))
+    
+    with client.ApiClient() as api_client:
+
+        api_instance = client.CoreV1Api(api_client)
+        api_instance.delete_namespace(username)
 
     return True

@@ -1,14 +1,16 @@
 from flask import Flask, request
 import os
-from app.utils import create_keycloak_user, apply_k8s_config
+from app.utils import create_keycloak_user, apply_k8s_config, delete_keycloak_user, delete_k8s_namespace
 from slugify import slugify
 
 
 app = Flask(__name__)
 
+
 @app.route('/')
 def home():
     return "Hello"
+
 
 @app.route('/provisioner', methods=['POST'])
 def provisioner():
@@ -27,10 +29,10 @@ def provisioner():
     username = None
 
     if not email:
-        
+
         if not full_name:
             return {'message': 'Email et Nom complet manquants'}, 400
-        
+
     if email:
         username = email.split('@')[0]
         username = username.replace(".", "_")
@@ -39,7 +41,7 @@ def provisioner():
         pf = full_name.replace(" ", "_")
         pf = pf.lower()
         username = slugify(pf)
-        
+
     user_data = create_keycloak_user(username, email)
 
     user_id, password = user_data
@@ -52,6 +54,31 @@ def provisioner():
         'password': password,
         'username': username
     }
+
+
+@app.route('/provisioner/clean', methods=['POST'])
+def provisioner_clean():
+
+    token = request.headers.get('Authorization')
+
+    expected_token = os.environ.get('VERIFICATION_TOKEN')
+
+    if token != expected_token:
+        return {'message': 'Token invalide'}, 401
+
+    data = request.get_json()
+    username = data.get('username')
+
+    user_id = delete_keycloak_user(username)
+
+    delete_k8s_namespace(username)
+
+    return {
+        'message': 'Utilisateur supprimé',
+        'user_id': user_id,
+        'username': username
+    }
+
 
 if __name__ == '__main__':
     app.run()
