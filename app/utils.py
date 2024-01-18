@@ -5,12 +5,16 @@ import yaml
 import json
 from keycloak import KeycloakAdmin
 from kubernetes import client, config, utils
+from grafana_client import GrafanaApi
 
+grafana = GrafanaApi.from_url(
+    url="https://grafana.zerofiltre.tech",
+    credential=(os.environ.get('GRAFANA_USER'), os.environ.get('GRAFANA_PASSWORD'))
+)
 
 def generate_password(length=12):
     characters = string.ascii_letters + string.digits
     return ''.join(random.choice(characters) for _ in range(length))
-
 
 def create_keycloak_user(username, email):
 
@@ -67,8 +71,6 @@ def delete_keycloak_user(username):
 
     return user_id
 
-
-
 def apply_k8s_config(username, user_id):
 
     k8s_file = 'app/k8s_templates/provisionner.yaml'
@@ -94,8 +96,6 @@ def apply_k8s_config(username, user_id):
 
     return True
 
-
-
 def delete_k8s_namespace(username):
 
     config.load_kube_config_from_dict(
@@ -106,4 +106,25 @@ def delete_k8s_namespace(username):
         api_instance = client.CoreV1Api(api_client)
         api_instance.delete_namespace(username)
 
+    return True
+
+def create_grafana_user(username, email, password):
+
+    user = grafana.admin.create_user({
+    "name": username,
+    "email": email,
+    "login": username,
+    "password": password,
+    "role": "Viewer",
+    "OrgId": 1})
+
+    return user
+
+def delete_grafana_user(username):
+        
+    user = grafana.users.find_user(username)
+    
+    if user:
+        grafana.admin.delete_user(user['id'])
+    
     return True

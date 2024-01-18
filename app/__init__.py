@@ -1,6 +1,6 @@
 from flask import Flask, request
 import os
-from app.utils import create_keycloak_user, apply_k8s_config, delete_keycloak_user, delete_k8s_namespace
+from app.utils import create_keycloak_user, apply_k8s_config, delete_keycloak_user, delete_k8s_namespace, create_grafana_user, delete_grafana_user
 from slugify import slugify
 
 
@@ -48,6 +48,8 @@ def provisioner():
 
     apply_k8s_config(username, user_id)
 
+    create_grafana_user(username, email, password)
+
     return {
         'message': 'Utilisateur créé',
         'user_id': user_id,
@@ -72,6 +74,7 @@ def provisioner_clean():
     user_id = delete_keycloak_user(username)
 
     delete_k8s_namespace(username)
+    delete_grafana_user(username)
 
     return {
         'message': 'Utilisateur supprimé',
