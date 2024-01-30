@@ -50,12 +50,14 @@ def provisioner():
         apply_k8s_config(username, user_id)
     except:
         delete_keycloak_user(username)
+        return {'message': "Can't create k8s user"}, 500
 
     try:
         create_grafana_user(username, email, password)
     except:
         delete_keycloak_user(username)
         delete_k8s_namespace(username)
+        return {'message': "Can't create k8s user"}, 500
 
     return {
         'message': 'Utilisateur créé',
