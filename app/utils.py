@@ -44,6 +44,8 @@ def create_keycloak_user(username, email):
 
     if not user_id:
         keycloak_admin.create_user(user_data, exist_ok=True)
+    else:
+        return "CREATED"
 
     user_id = keycloak_admin.get_user_id(username)
 
