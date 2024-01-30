@@ -44,6 +44,9 @@ def provisioner():
 
     user_data = create_keycloak_user(username, email)
 
+    if user_data=="CREATED":
+        return {'message': "USER ALREADY EXIST"}, 500
+
     user_id, password = user_data
 
     try:
@@ -57,7 +60,7 @@ def provisioner():
     except:
         delete_keycloak_user(username)
         delete_k8s_namespace(username)
-        return {'message': "Can't create k8s user"}, 500
+        return {'message': "Can't create grafana user"}, 500
 
     return {
         'message': 'Utilisateur créé',
