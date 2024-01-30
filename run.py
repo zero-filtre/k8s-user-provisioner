@@ -2,7 +2,6 @@ from app import app
 from dotenv import load_dotenv
 
 load_dotenv("/vault/secrets/config")
-
 load_dotenv(".env")
 
 if __name__ == '__main__':

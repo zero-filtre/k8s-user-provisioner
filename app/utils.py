@@ -6,6 +6,14 @@ import json
 from keycloak import KeycloakAdmin
 from kubernetes import client, config, utils
 from grafana_client import GrafanaApi
+from dotenv import load_dotenv
+
+load_dotenv("/vault/secrets/config")
+load_dotenv(".env")
+
+
+print(os.environ.get('GRAFANA_USER'))
+print(os.environ.get('GRAFANA_PASSWORD'))
 
 grafana = GrafanaApi.from_url(
     url="https://grafana.zerofiltre.tech",
