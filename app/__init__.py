@@ -19,7 +19,10 @@ def provisioner():
 
     expected_token = os.environ.get('VERIFICATION_TOKEN')
 
-    if token != expected_token:
+    print(token)
+    print(expected_token)
+
+    if True:
         return {'message': 'Token invalide'}, 401
 
     data = request.get_json()
