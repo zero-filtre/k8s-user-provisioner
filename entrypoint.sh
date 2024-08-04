@@ -2,4 +2,4 @@
 
 echo "The app is starting ..."
 
-python run.py
+opentelemetry-instrument python run.py

@@ -12,9 +12,6 @@ load_dotenv("/vault/secrets/config")
 load_dotenv(".env")
 
 
-print(os.environ.get('GRAFANA_USER'))
-print(os.environ.get('GRAFANA_PASSWORD'))
-
 grafana = GrafanaApi.from_url(
     url="https://grafana.zerofiltre.tech",
     credential=(os.environ.get('GRAFANA_USER'), os.environ.get('GRAFANA_PASSWORD'))

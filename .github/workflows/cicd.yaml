@@ -72,7 +72,8 @@ jobs:
         tags: imzerofiltre/zerofiltretech-provisioner:${{ github.run_number }}_${{ env.DOCKER_TAG_SUFFIX }}
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache-new
-    
+        build-args: PROFILE=${{ env.env_name }}
+
     - name: Set up kubectl
       uses: tale/kubectl-action@v1
       with:
@@ -80,7 +81,7 @@ jobs:
 
     - name: Set up k8s manifest
       run: |
-        envsubst < k8s-env.yaml > k8s.yml
+        envsubst < microservice.yaml > k8s.yml
         cat k8s.yml
         
     - name: Deploy to k8s
