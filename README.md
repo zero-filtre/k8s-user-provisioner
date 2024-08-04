@@ -59,7 +59,8 @@ source .venv/bin/activate
 
 ### Start the app locally 
 
-Create a file .env at the root of the project then fill it with the content [located here](https://vault.zerofiltre.tech/ui/vault/secrets/dev/show/zerofiltre-approvisionner)
+Create a file .env at the root of the project then fill it with the content [located here](https://vault.zerofiltre.tech/ui/vault/secrets/prod/show/zerofiltre-provisioner)  
+
 ✍🏼 You must have access to our vault !
 
 Replace the xxx placeholders with the values located in the same dir in the vault.
