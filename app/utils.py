@@ -1,28 +1,30 @@
-import string
-import random
-import os
-import yaml
 import json
+import os
+import random
+import string
+
+import yaml
+from dotenv import load_dotenv
+from grafana_client import GrafanaApi
 from keycloak import KeycloakAdmin
 from kubernetes import client, config, utils
-from grafana_client import GrafanaApi
-from dotenv import load_dotenv
+from slugify import slugify
 
 load_dotenv("/vault/secrets/config")
 load_dotenv(".env")
-
 
 grafana = GrafanaApi.from_url(
     url="https://grafana.zerofiltre.tech",
     credential=(os.environ.get('GRAFANA_USER'), os.environ.get('GRAFANA_PASSWORD'))
 )
 
+
 def generate_password(length=12):
     characters = string.ascii_letters + string.digits
     return ''.join(random.choice(characters) for _ in range(length))
 
-def create_keycloak_user(username, email):
 
+def create_keycloak_user(username, email):
     KEYCLOAK_BASE_URL = os.environ.get('KEYCLOAK_BASE_URL')
     REALM = os.environ.get('KEYCLOAK_REALM')
     CLIENT_ID = os.environ.get('KEYCLOAK_CLIENT_ID')
@@ -56,8 +58,8 @@ def create_keycloak_user(username, email):
 
     return user_id, generated_password
 
-def delete_keycloak_user(username):
 
+def delete_keycloak_user(username):
     KEYCLOAK_BASE_URL = os.environ.get('KEYCLOAK_BASE_URL')
     REALM = os.environ.get('KEYCLOAK_REALM')
     CLIENT_ID = os.environ.get('KEYCLOAK_CLIENT_ID')
@@ -78,8 +80,8 @@ def delete_keycloak_user(username):
 
     return user_id
 
-def apply_k8s_config(username, user_id):
 
+def apply_k8s_config(username, user_id):
     k8s_file = 'app/k8s_templates/provisionner.yaml'
 
     template = None
@@ -93,45 +95,73 @@ def apply_k8s_config(username, user_id):
     templates = yaml.safe_load_all(template)
 
     config.load_kube_config_from_dict(
-            json.loads(os.environ.get('KUBE_CONFIG')))
+        json.loads(os.environ.get('KUBE_CONFIG')))
 
     for template in templates:
-
         k8s_client = client.ApiClient()
 
         utils.create_from_dict(k8s_client, template)
 
     return True
 
+
 def delete_k8s_namespace(username):
-
     config.load_kube_config_from_dict(
-            json.loads(os.environ.get('KUBE_CONFIG')))
-    
-    with client.ApiClient() as api_client:
+        json.loads(os.environ.get('KUBE_CONFIG')))
 
+    with client.ApiClient() as api_client:
         api_instance = client.CoreV1Api(api_client)
         api_instance.delete_namespace(username)
 
     return True
 
-def create_grafana_user(username, email, password):
 
+def create_grafana_user(username, email, password):
     user = grafana.admin.create_user({
-    "name": username,
-    "email": email,
-    "login": username,
-    "password": password,
-    "role": "Viewer",
-    "OrgId": 1})
+        "name": username,
+        "email": email,
+        "login": username,
+        "password": password,
+        "role": "Viewer",
+        "OrgId": 1})
 
     return user
 
+
 def delete_grafana_user(username):
-        
     user = grafana.users.find_user(username)
-    
+
     if user:
         grafana.admin.delete_user(user['id'])
-    
+
     return True
+
+
+def make_username(email, full_name):
+    if email:
+        username = email.split('@')[0]
+        username = username.replace(".", "_")
+        username = slugify(username)
+    else:
+        pf = full_name.replace(" ", "_")
+        pf = pf.lower()
+        username = slugify(pf)
+
+    return username
+
+
+def make_usernames(email, full_name):
+    username_based_email = None
+    username_based_fullname = None
+
+    if email:
+        username_based_email = email.split('@')[0]
+        username_based_email = username_based_email.replace(".", "_")
+        username_based_email = slugify(username_based_email)
+
+    if full_name:
+        pf = full_name.replace(" ", "_")
+        pf = pf.lower()
+        username_based_fullname = slugify(pf)
+
+    return username_based_email, username_based_email
