@@ -1,8 +1,9 @@
-from flask import Flask, request
 import os
+
+from flask import Flask, request
+
 from app.utils import create_keycloak_user, apply_k8s_config, delete_keycloak_user, delete_k8s_namespace, \
-    create_grafana_user, delete_grafana_user
-from slugify import slugify
+    create_grafana_user, delete_grafana_user, make_username, make_usernames
 
 app = Flask(__name__)
 
@@ -28,18 +29,10 @@ def provisioner():
     username = None
 
     if not email:
-
         if not full_name:
             return {'message': 'Email address and full name are missing'}, 400
 
-    if email:
-        username = email.split('@')[0]
-        username = username.replace(".", "_")
-        username = slugify(username)
-    else:
-        pf = full_name.replace(" ", "_")
-        pf = pf.lower()
-        username = slugify(pf)
+    username = make_username(email, full_name)
 
     print(username)
 
@@ -81,18 +74,29 @@ def provisioner_clean():
         return {'message': 'Please submit a valid token'}, 401
 
     data = request.get_json()
-    username = data.get('username')
+    email = data.get("email")
+    full_name = data.get('full_name')
 
-    user_id = delete_keycloak_user(username)
+    if not email:
+        if not full_name:
+            return {'message': 'Email address and full name are missing'}, 400
 
-    delete_k8s_namespace(username)
-    delete_grafana_user(username)
+    usernames = make_usernames(email, full_name)
 
-    return {
-        'message': 'User has been deleted successfully',
-        'user_id': user_id,
-        'username': username
-    }
+    for username in usernames:
+        try:
+            delete_k8s_namespace(username)
+            user_id = delete_keycloak_user(username)
+            delete_grafana_user(username)
+            return {
+                'message': 'User has been deleted successfully',
+                'user_id': user_id,
+                'username': username
+            }
+        except Exception as e:
+            print(e)
+
+    return {"Failed to delete user and related resources, it may not exist."}, 500
 
 
 if __name__ == '__main__':
