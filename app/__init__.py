@@ -1,4 +1,5 @@
 import os
+import logging
 
 from flask import Flask, request
 
@@ -6,6 +7,7 @@ from app.utils import create_keycloak_user, apply_k8s_config, delete_keycloak_us
     create_grafana_user, delete_grafana_user, make_username, make_usernames
 
 app = Flask(__name__)
+logger = logging.getLogger(__name__)
 
 
 @app.route('/')
@@ -29,6 +31,7 @@ def provisioner():
     username = None
 
     if not email:
+
         if not full_name:
             return {'message': 'Email address and full name are missing'}, 400
 
@@ -94,7 +97,7 @@ def provisioner_clean():
                 'username': username
             }
         except Exception as e:
-            print(e)
+            logger.error(f"Failed to delete with this username : {username} : {e}", exc_info=True)
 
     return {"Failed to delete user and related resources, it may not exist."}, 500
 
