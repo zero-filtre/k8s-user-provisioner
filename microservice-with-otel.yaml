@@ -8,11 +8,12 @@ data:
   OTEL_SERVICE_NAME: "zerofiltretech-provisioner-willbrid"
   OTEL_PYTHON_LOG_CORRELATION: "true"
   OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: "true"
-  OTEL_PYHTON_LOG_LEVEL: "debug"
-  OTEL_LOGS_EXPORTER: "none"
+  OTEL_PYHTON_LOG_LEVEL: "info"
+  OTEL_LOGS_EXPORTER: "otlp"
   OTEL_TRACES_EXPORTER: "otlp"
   OTEL_METRICS_EXPORTER: "otlp"
   OTEL_EXPORTER_OTLP_ENDPOINT: "http://otelcol-opentelemetry-collector.zerofiltre-bootcamp.svc:4318"
+  OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
 ---
 apiVersion: v1
 kind: Secret
