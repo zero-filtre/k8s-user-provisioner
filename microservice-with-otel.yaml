@@ -57,9 +57,9 @@ spec:
             protocol: TCP
           envFrom:
           - configMapRef:
-            name: zerofiltretech-provisioner-willbrid
+              name: zerofiltretech-provisioner-willbrid
           - secretRef:
-            name: zerofiltretech-provisioner-willbrid
+              name: zerofiltretech-provisioner-willbrid
           resources:
             requests:
               cpu: 0.1
