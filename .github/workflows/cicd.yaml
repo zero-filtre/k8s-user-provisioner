@@ -19,7 +19,7 @@ jobs:
       api_host : ${{startsWith(github.ref, 'refs/heads/release-') && 'provisioner.zerofiltre.tech' || 'provisioner-dev.zerofiltre.tech'}}
       DOCKER_TAG_SUFFIX: ${{startsWith(github.ref, 'refs/heads/release-') && 'stable' || 'unstable'}}
       replicas : ${{startsWith(github.ref, 'refs/heads/release-') && 1 || 1 }}
-      requests_cpu : ${{startsWith(github.ref, 'refs/heads/release-') && 0.01 || 0.01 }}
+      requests_cpu : ${{startsWith(github.ref, 'refs/heads/release-') && '10m' || '10m' }}
       requests_memory : ${{startsWith(github.ref, 'refs/heads/release-') && '0.5Gi' || '0.5Gi' }}
       limits_memory : ${{startsWith(github.ref, 'refs/heads/release-') && '0.5Gi' || '0.5Gi' }}
       domain_name : ${{startsWith(github.ref, 'refs/heads/release-') && 'provisioner.zerofiltre.tech' || 'provisioner-dev.zerofiltre.tech'}}
