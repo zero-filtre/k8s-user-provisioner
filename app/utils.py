@@ -164,4 +164,4 @@ def make_usernames(email, full_name):
         pf = pf.lower()
         username_based_fullname = slugify(pf)
 
-    return username_based_email, username_based_email
+    return username_based_email, username_based_fullname
