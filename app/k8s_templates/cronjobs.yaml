@@ -1,0 +1,47 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: reset-namespaces
+  namespace: zerofiltretech-${env_name}
+spec:
+  schedule: "0 0 1 * *"  # Run at midnight on the first day of every month
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: reset-namespaces
+            image: curlimages/curl:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              curl -X POST http://zerofiltretech-provisioner-${env_name}.zerofiltretech-${env_name}.svc.cluster.local:5000/reset \
+                -H "Authorization: ${VERIFICATION_TOKEN}" \
+                -H "Content-Type: application/json"
+          restartPolicy: OnFailure
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cleanup-old-users
+  namespace: zerofiltretech-${env_name}
+spec:
+  schedule: "0 0 31 12 *"  # Run at midnight on December 31st
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: cleanup-old-users
+            image: curlimages/curl:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              curl -X POST http://zerofiltretech-provisioner-${env_name}.zerofiltretech-${env_name}.svc.cluster.local:5000/cleanup \
+                -H "Authorization: ${VERIFICATION_TOKEN}" \
+                -H "Content-Type: application/json"
+          restartPolicy: OnFailure 
