@@ -2,6 +2,9 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: username
+  labels:
+    managed-by: k8s-provisioner
+    provisioned: "true"
 
 ---
 #Service Account

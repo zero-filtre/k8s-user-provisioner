@@ -44,7 +44,11 @@ def create_keycloak_user(username, email):
         'email': email,
         'enabled': True,
         'username': username,
-        'credentials': [{'type': 'password', 'value': generated_password}]
+        'credentials': [{'type': 'password', 'value': generated_password}],
+        'attributes': {
+            'managed-by': ['k8s-provisioner'],
+            'provisioned': ['true']
+        }
     }
 
     user_id = keycloak_admin.get_user_id(username)
@@ -165,3 +169,64 @@ def make_usernames(email, full_name):
         username_based_fullname = slugify(pf)
 
     return username_based_email, username_based_fullname
+
+
+def get_provisioned_users():
+    KEYCLOAK_BASE_URL = os.environ.get('KEYCLOAK_BASE_URL')
+    REALM = os.environ.get('KEYCLOAK_REALM')
+    CLIENT_ID = os.environ.get('KEYCLOAK_CLIENT_ID')
+    CLIENT_SECRET = os.environ.get('KEYCLOAK_CLIENT_SECRET')
+
+    keycloak_admin = KeycloakAdmin(
+        server_url=KEYCLOAK_BASE_URL,
+        client_id=CLIENT_ID,
+        client_secret_key=CLIENT_SECRET,
+        realm_name=REALM,
+        verify=True
+    )
+
+    # Get all users with our specific attribute
+    users = keycloak_admin.get_users({
+        'q': 'managed-by:k8s-provisioner'
+    })
+    
+    # Filter users that have both required attributes
+    provisioned_users = []
+    for user in users:
+        attributes = user.get('attributes', {})
+        if (attributes.get('managed-by') == ['k8s-provisioner'] and 
+            attributes.get('provisioned') == ['true']):
+            provisioned_users.append(user)
+    
+    return provisioned_users
+
+
+def get_old_provisioned_users():
+    KEYCLOAK_BASE_URL = os.environ.get('KEYCLOAK_BASE_URL')
+    REALM = os.environ.get('KEYCLOAK_REALM')
+    CLIENT_ID = os.environ.get('KEYCLOAK_CLIENT_ID')
+    CLIENT_SECRET = os.environ.get('KEYCLOAK_CLIENT_SECRET')
+
+    keycloak_admin = KeycloakAdmin(
+        server_url=KEYCLOAK_BASE_URL,
+        client_id=CLIENT_ID,
+        client_secret_key=CLIENT_SECRET,
+        realm_name=REALM,
+        verify=True
+    )
+
+    # Get all provisioned users
+    users = get_provisioned_users()
+    
+    # Filter users created more than a year ago
+    from datetime import datetime, timedelta
+    one_year_ago = datetime.now() - timedelta(days=365)
+    
+    old_users = []
+    for user in users:
+        created_timestamp = user.get('createdTimestamp', 0) / 1000  # Convert to seconds
+        created_date = datetime.fromtimestamp(created_timestamp)
+        if created_date < one_year_ago:
+            old_users.append(user)
+    
+    return old_users
