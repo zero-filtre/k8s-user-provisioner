@@ -66,8 +66,8 @@ The following tasks are automated using Kubernetes CronJobs:
 - Resets all provisioned namespaces
 - Ensures clean state for all users
 
-### Yearly User Cleanup
-- Runs at midnight on December 31st
+### Daily User Cleanup
+- Runs at midnight every day
 - Removes users and their resources that are more than a year old
 - Helps maintain system cleanliness
 

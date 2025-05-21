@@ -39,7 +39,7 @@ metadata:
   name: cleanup-old-users
   namespace: zerofiltretech-${env_name}
 spec:
-  schedule: "0 0 31 12 *"  # Run at midnight on December 31st
+  schedule: "0 0 * * *"  # Run at midnight every day
   concurrencyPolicy: Forbid
   jobTemplate:
     spec:
