@@ -9,7 +9,17 @@ spec:
   jobTemplate:
     spec:
       template:
+        metadata:
+          annotations:
+            vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/role: "internal-app"
+            vault.hashicorp.com/agent-inject-secret-config: "${env_name}/data/zerofiltre-provisioner"
+            vault.hashicorp.com/agent-inject-template-config: |
+              {{- with secret "${env_name}/data/zerofiltre-provisioner" -}}
+                VERIFICATION_TOKEN="{{ .Data.data.VERIFICATION_TOKEN}}"
+              {{- end -}}
         spec:
+          serviceAccountName: internal-app
           containers:
           - name: reset-namespaces
             image: curlimages/curl:latest
@@ -17,8 +27,9 @@ spec:
             - /bin/sh
             - -c
             - |
+              source /vault/secrets/config
               curl -X POST http://zerofiltretech-provisioner-${env_name}.zerofiltretech-${env_name}.svc.cluster.local:5000/reset \
-                -H "Authorization: ${VERIFICATION_TOKEN}" \
+                -H "Authorization: $VERIFICATION_TOKEN" \
                 -H "Content-Type: application/json"
           restartPolicy: OnFailure
 ---
@@ -33,7 +44,17 @@ spec:
   jobTemplate:
     spec:
       template:
+        metadata:
+          annotations:
+            vault.hashicorp.com/agent-inject: "true"
+            vault.hashicorp.com/role: "internal-app"
+            vault.hashicorp.com/agent-inject-secret-config: "${env_name}/data/zerofiltre-provisioner"
+            vault.hashicorp.com/agent-inject-template-config: |
+              {{- with secret "${env_name}/data/zerofiltre-provisioner" -}}
+                VERIFICATION_TOKEN="{{ .Data.data.VERIFICATION_TOKEN}}"
+              {{- end -}}
         spec:
+          serviceAccountName: internal-app
           containers:
           - name: cleanup-old-users
             image: curlimages/curl:latest
@@ -41,7 +62,8 @@ spec:
             - /bin/sh
             - -c
             - |
+              source /vault/secrets/config
               curl -X POST http://zerofiltretech-provisioner-${env_name}.zerofiltretech-${env_name}.svc.cluster.local:5000/cleanup \
-                -H "Authorization: ${VERIFICATION_TOKEN}" \
+                -H "Authorization: $VERIFICATION_TOKEN" \
                 -H "Content-Type: application/json"
           restartPolicy: OnFailure 

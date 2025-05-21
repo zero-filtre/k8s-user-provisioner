@@ -116,10 +116,7 @@ with tracer.start_as_current_span("provisioner-flask-endpoint"):
         try:
             # Get all provisioned users from Keycloak
             users = get_provisioned_users()
-            
-            print(users)
-            
-            
+     
             # Delete all existing namespaces for provisioned users
             for user in users:
                 username = user.get('username')
@@ -164,8 +161,6 @@ with tracer.start_as_current_span("provisioner-flask-endpoint"):
             # Get all old provisioned users
             old_users = get_old_provisioned_users()
             
-            print(old_users)
-                        
             deleted_users = []
             failed_deletions = []
             
