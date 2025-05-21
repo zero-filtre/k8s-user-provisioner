@@ -202,18 +202,6 @@ def get_provisioned_users():
 
 
 def get_old_provisioned_users():
-    KEYCLOAK_BASE_URL = os.environ.get('KEYCLOAK_BASE_URL')
-    REALM = os.environ.get('KEYCLOAK_REALM')
-    CLIENT_ID = os.environ.get('KEYCLOAK_CLIENT_ID')
-    CLIENT_SECRET = os.environ.get('KEYCLOAK_CLIENT_SECRET')
-
-    keycloak_admin = KeycloakAdmin(
-        server_url=KEYCLOAK_BASE_URL,
-        client_id=CLIENT_ID,
-        client_secret_key=CLIENT_SECRET,
-        realm_name=REALM,
-        verify=True
-    )
 
     # Get all provisioned users
     users = get_provisioned_users()
