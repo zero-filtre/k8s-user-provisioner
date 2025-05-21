@@ -22,16 +22,54 @@ This will create :
 ### Deletion
 
 ```shell
-curl --location 'https://provisioner.zerofiltre.tech/provisioner/clean' \
+curl --location 'https://provisioner.zerofiltre.tech/provisioner' \
+--request DELETE \
 --header 'Authorization: <token>' \
 --header 'Content-Type: application/json' \
 --data-raw '{
-  "username":"username"
+    "full_name":"username",
+    "email":"email_address"
 }'
 ```
 This will delete everything that has been created for that user.
 
+### Reset Namespaces
 
+```shell
+curl --location 'https://provisioner.zerofiltre.tech/reset' \
+--header 'Authorization: <token>' \
+--header 'Content-Type: application/json'
+```
+This will:
+- Delete all existing namespaces for provisioned users
+- Recreate namespaces for all provisioned users
+- Return statistics about the operation
+
+### Cleanup Old Users
+
+```shell
+curl --location 'https://provisioner.zerofiltre.tech/cleanup' \
+--header 'Authorization: <token>' \
+--header 'Content-Type: application/json'
+```
+This will:
+- Find all users created more than a year ago
+- Delete their namespaces, Grafana users, and Keycloak users
+- Return statistics about the cleanup operation
+
+## Automated Tasks
+
+The following tasks are automated using Kubernetes CronJobs:
+
+### Monthly Namespace Reset
+- Runs at midnight on the first day of every month
+- Resets all provisioned namespaces
+- Ensures clean state for all users
+
+### Yearly User Cleanup
+- Runs at midnight on December 31st
+- Removes users and their resources that are more than a year old
+- Helps maintain system cleanliness
 
 ## To start the app locally for testing purposes
 
@@ -67,4 +105,25 @@ Replace the xxx placeholders with the values located in the same dir in the vaul
 Then:
 ```
  python run.py
+```
+
+## Testing
+
+You can use the provided test script to test all endpoints:
+
+```shell
+# Test user creation
+python test_api.py create <email> <full_name>
+
+# Test user deletion
+python test_api.py delete <email> <full_name>
+
+# Test namespace reset
+python test_api.py reset
+
+# Test old users cleanup
+python test_api.py cleanup
+
+# Run complete test process
+python test_api.py process
 ```
