@@ -123,7 +123,7 @@ spec:
             - |
               source /vault/secrets/config
               . /vault/secrets/config
-              curl -X POST -H "Authorization: \$VERIFICATION_TOKEN" -H "Content-Type: application/json" http://zerofiltretech-provisioner-${env_name}.zerofiltretech-${env_name}.svc.cluster.local:5000/reset
+              curl -X POST -H "Authorization: $${no_value}VERIFICATION_TOKEN" -H "Content-Type: application/json" http://zerofiltretech-provisioner-${env_name}.zerofiltretech-${env_name}.svc.cluster.local:5000/reset
           restartPolicy: OnFailure
 ---
 apiVersion: batch/v1
@@ -157,5 +157,5 @@ spec:
             - |
               source /vault/secrets/config
               . /vault/secrets/config
-              curl -X POST -H "Authorization: \$VERIFICATION_TOKEN" -H "Content-Type: application/json" http://zerofiltretech-provisioner-${env_name}.zerofiltretech-${env_name}.svc.cluster.local:5000/cleanup
+              curl -X POST -H "Authorization: $${no_value}VERIFICATION_TOKEN" -H "Content-Type: application/json" http://zerofiltretech-provisioner-${env_name}.zerofiltretech-${env_name}.svc.cluster.local:5000/cleanup
           restartPolicy: OnFailure 
