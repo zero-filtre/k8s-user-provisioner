@@ -9,7 +9,7 @@ from flask import Flask, request
 
 from app.utils import create_keycloak_user, apply_k8s_config, delete_keycloak_user, delete_k8s_namespace, \
     create_grafana_user, delete_grafana_user, make_username, make_usernames, get_provisioned_users, \
-    get_old_provisioned_users, delete_namespace_resources, get_keycloak_admin, generate_password, check_namespace_exists, get_grafana_user
+    get_old_provisioned_users, delete_namespace_resources, generate_password, check_namespace_exists, get_grafana_user
 
 app = Flask(__name__)
 logger = logging.getLogger(__name__)
