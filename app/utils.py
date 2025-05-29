@@ -2,6 +2,7 @@ import json
 import os
 import random
 import string
+import logging
 
 import yaml
 from dotenv import load_dotenv
@@ -12,6 +13,9 @@ from slugify import slugify
 
 load_dotenv("/vault/secrets/config")
 load_dotenv(".env")
+
+logger = logging.getLogger(__name__)
+
 
 grafana = GrafanaApi.from_url(
     url="https://grafana.zerofiltre.tech",
@@ -120,6 +124,51 @@ def delete_k8s_namespace(username):
     return True
 
 
+def delete_namespace_resources(username):
+    """Delete all resources in a namespace without deleting the namespace itself"""
+    config.load_kube_config_from_dict(
+        json.loads(os.environ.get('KUBE_CONFIG')))
+
+    with client.ApiClient() as api_client:
+        # Get all API resources
+        api_resources = api_client.get_api_resources()
+        deleted_resources = []
+        failed_resources = []
+
+        # Resources to exclude from deletion
+        excluded_resources = ['resourcequota', 'rolebinding']
+
+        # For each namespaced resource, delete all instances in the namespace
+        for resource in api_resources.resources:
+            if resource.namespaced and resource.name.lower() not in excluded_resources:
+                try:
+                    # Construct the API path
+                    if resource.group:
+                        # For resources with API group
+                        api_path = f"/apis/{resource.group}/{resource.version}/namespaces/{username}/{resource.plural}"
+                    else:
+                        # For core resources
+                        api_path = f"/api/v1/namespaces/{username}/{resource.plural}"
+
+                    # Delete all resources of this type in the namespace
+                    api_call_kwargs = {
+                        "resource_path": api_path,
+                        "method": "DELETE",
+                        "response_type": "object",
+                    }
+                    response = api_client.call_api(**api_call_kwargs)
+                    deleted_resources.append(resource.name)
+                    logger.info(f"Deleted {resource.name} in namespace {username}")
+                except Exception as e:
+                    logger.error(f"Failed to delete {resource.name} in namespace {username}: {e}", exc_info=True)
+                    failed_resources.append(resource.name)
+
+        return {
+            'deleted_resources': deleted_resources,
+            'failed_resources': failed_resources
+        }
+
+
 def create_grafana_user(username, email, password):
     user = grafana.admin.create_user({
         "name": username,
@@ -139,6 +188,10 @@ def delete_grafana_user(username):
         grafana.admin.delete_user(user['id'])
 
     return True
+
+def get_grafana_user(username):
+    grafana_user = grafana.users.find_user(username)
+    return grafana_user
 
 
 def make_username(email, full_name):
@@ -218,3 +271,19 @@ def get_old_provisioned_users():
             old_users.append(user)
     
     return old_users
+
+
+def check_namespace_exists(username):
+    """Check if a namespace exists in Kubernetes"""
+    config.load_kube_config_from_dict(
+        json.loads(os.environ.get('KUBE_CONFIG')))
+
+    with client.ApiClient() as api_client:
+        api_instance = client.CoreV1Api(api_client)
+        try:
+            api_instance.read_namespace(username)
+            return True
+        except client.exceptions.ApiException as e:
+            if e.status == 404:
+                return False
+            raise e

@@ -1,13 +1,15 @@
 import os
 import logging
+import json
 
 from opentelemetry import trace
 
 from flask import Flask, request
 
+
 from app.utils import create_keycloak_user, apply_k8s_config, delete_keycloak_user, delete_k8s_namespace, \
     create_grafana_user, delete_grafana_user, make_username, make_usernames, get_provisioned_users, \
-    get_old_provisioned_users
+    get_old_provisioned_users, delete_namespace_resources, get_keycloak_admin, generate_password, check_namespace_exists, get_grafana_user
 
 app = Flask(__name__)
 logger = logging.getLogger(__name__)
@@ -116,32 +118,26 @@ with tracer.start_as_current_span("provisioner-flask-endpoint"):
         try:
             # Get all provisioned users from Keycloak
             users = get_provisioned_users()
+            reset_namespaces = []
+            failed_resets = []
      
-            # Delete all existing namespaces for provisioned users
+            # Delete all resources in each namespace
             for user in users:
                 username = user.get('username')
                 if username:
                     try:
-                        delete_k8s_namespace(username)
-                        logger.info(f"Deleted namespace for user: {username}")
+                        delete_namespace_resources(username)
+                        logger.info(f"Reset namespace for user: {username}")
+                        reset_namespaces.append(username)
                     except Exception as e:
-                        logger.error(f"Failed to delete namespace for user {username}: {e}", exc_info=True)
-
-            # Recreate namespaces for all provisioned users
-            for user in users:
-                username = user.get('username')
-                user_id = user.get('id')
-                if username and user_id:
-                    try:
-                        apply_k8s_config(username, user_id)
-                        logger.info(f"Recreated namespace for user: {username}")
-                    except Exception as e:
-                        logger.error(f"Failed to recreate namespace for user {username}: {e}", exc_info=True)
+                        logger.error(f"Failed to reset namespace for user {username}: {e}", exc_info=True)
+                        failed_resets.append(username)
 
             return {
                 'message': 'All provisioned namespaces have been reset successfully',
                 'users_processed': len(users),
-                'namespaces_recreated': len(users)
+                'namespaces_reset': len(reset_namespaces),
+                'failed_resets': failed_resets
             }
 
         except Exception as e:
@@ -216,5 +212,91 @@ with tracer.start_as_current_span("provisioner-flask-endpoint"):
             logger.error(f"Failed to perform cleanup: {e}", exc_info=True)
             return {'message': 'Failed to perform cleanup'}, 500
 
+    @app.route('/sync', methods=['POST'])
+    def sync_users():
+        token = request.headers.get('Authorization')
+
+        expected_token = os.environ.get('VERIFICATION_TOKEN')
+
+        if token != expected_token:
+            return {'message': 'Please submit a valid token'}, 401
+
+        try:
+            # Get all provisioned users from Keycloak
+            users = get_provisioned_users()
+            sync_results = {
+                'total_users': len(users),
+                'fixed_users': [],
+                'failed_fixes': []
+            }
+
+            for user in users:
+                username = user.get('username')
+                email = user.get('email')
+                if not username:
+                    continue
+
+                try:
+                    # Check Grafana user
+                    grafana_user = get_grafana_user(username)
+                    needs_grafana = not grafana_user
+
+                    # Check Kubernetes namespace
+                    needs_namespace = not check_namespace_exists(username)
+
+                    if needs_grafana or needs_namespace:
+                        # Get user's password from Keycloak
+                        keycloak_admin = get_keycloak_admin()
+                        user_id = keycloak_admin.get_user_id(username)
+                        
+                        if needs_grafana:
+                            try:
+                                # Create Grafana user with the same password
+                                create_grafana_user(username, email, user.get('credentials', [{}])[0].get('value', generate_password()))
+                                logger.info(f"Created missing Grafana user: {username}")
+                            except Exception as e:
+                                logger.error(f"Failed to create Grafana user {username}: {e}", exc_info=True)
+                                sync_results['failed_fixes'].append({
+                                    'username': username,
+                                    'error': f"Failed to create Grafana user: {str(e)}"
+                                })
+                                continue
+
+                        if needs_namespace:
+                            try:
+                                # Create Kubernetes namespace
+                                apply_k8s_config(username, user_id)
+                                logger.info(f"Created missing namespace for user: {username}")
+                            except Exception as e:
+                                logger.error(f"Failed to create namespace for user {username}: {e}", exc_info=True)
+                                sync_results['failed_fixes'].append({
+                                    'username': username,
+                                    'error': f"Failed to create namespace: {str(e)}"
+                                })
+                                continue
+
+                        sync_results['fixed_users'].append({
+                            'username': username,
+                            'fixed_grafana': needs_grafana,
+                            'fixed_namespace': needs_namespace
+                        })
+
+                except Exception as e:
+                    logger.error(f"Failed to sync user {username}: {e}", exc_info=True)
+                    sync_results['failed_fixes'].append({
+                        'username': username,
+                        'error': str(e)
+                    })
+
+            return {
+                'message': 'Sync completed',
+                'results': sync_results
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to perform sync: {e}", exc_info=True)
+            return {'message': 'Failed to perform sync'}, 500
+        
+        
 if __name__ == '__main__':
     app.run()
