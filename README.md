@@ -41,9 +41,12 @@ curl --location 'https://provisioner.zerofiltre.tech/reset' \
 --header 'Content-Type: application/json'
 ```
 This will:
-- Delete all existing namespaces for provisioned users
-- Recreate namespaces for all provisioned users
-- Return statistics about the operation
+- Delete all resources in each namespace for provisioned users (except ResourceQuotas and RoleBindings)
+- Keep the namespaces themselves intact
+- Return statistics about the operation including:
+  - Total users processed
+  - Number of namespaces successfully reset
+  - List of failed resets
 
 ### Cleanup Old Users
 
@@ -57,14 +60,32 @@ This will:
 - Delete their namespaces, Grafana users, and Keycloak users
 - Return statistics about the cleanup operation
 
+### Sync Users
+
+```shell
+curl --location 'https://provisioner.zerofiltre.tech/sync' \
+--header 'Authorization: <token>' \
+--header 'Content-Type: application/json'
+```
+This will:
+- Check all provisioned users in Keycloak
+- For each user:
+  - Verify if they have a Grafana account
+  - Verify if they have a Kubernetes namespace
+  - Create missing Grafana accounts or namespaces as needed
+- Return a detailed report including:
+  - Total number of users checked
+  - List of fixed users (with details of what was fixed)
+  - List of failed fixes (with error messages)
+
 ## Automated Tasks
 
 The following tasks are automated using Kubernetes CronJobs:
 
 ### Monthly Namespace Reset
 - Runs at midnight on the first day of every month
-- Resets all provisioned namespaces
-- Ensures clean state for all users
+- Resets all provisioned namespaces by removing all resources (except ResourceQuotas and RoleBindings)
+- Ensures clean state for all users while preserving namespace structure
 
 ### Daily User Cleanup
 - Runs at midnight every day
