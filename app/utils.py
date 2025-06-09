@@ -28,13 +28,14 @@ def generate_password(length=12):
     return ''.join(random.choice(characters) for _ in range(length))
 
 
-def create_keycloak_user(username, email):
+def get_keycloak_admin():
+    """Get a configured KeycloakAdmin client"""
     KEYCLOAK_BASE_URL = os.environ.get('KEYCLOAK_BASE_URL')
     REALM = os.environ.get('KEYCLOAK_REALM')
     CLIENT_ID = os.environ.get('KEYCLOAK_CLIENT_ID')
     CLIENT_SECRET = os.environ.get('KEYCLOAK_CLIENT_SECRET')
 
-    keycloak_admin = KeycloakAdmin(
+    return KeycloakAdmin(
         server_url=KEYCLOAK_BASE_URL,
         client_id=CLIENT_ID,
         client_secret_key=CLIENT_SECRET,
@@ -42,6 +43,9 @@ def create_keycloak_user(username, email):
         verify=True
     )
 
+
+def create_keycloak_user(username, email):
+    keycloak_admin = get_keycloak_admin()
     generated_password = generate_password()
 
     user_data = {
@@ -63,7 +67,6 @@ def create_keycloak_user(username, email):
         return "CREATED"
 
     user_id = keycloak_admin.get_user_id(username)
-
     return user_id, generated_password
 
 
@@ -225,18 +228,7 @@ def make_usernames(email, full_name):
 
 
 def get_provisioned_users():
-    KEYCLOAK_BASE_URL = os.environ.get('KEYCLOAK_BASE_URL')
-    REALM = os.environ.get('KEYCLOAK_REALM')
-    CLIENT_ID = os.environ.get('KEYCLOAK_CLIENT_ID')
-    CLIENT_SECRET = os.environ.get('KEYCLOAK_CLIENT_SECRET')
-
-    keycloak_admin = KeycloakAdmin(
-        server_url=KEYCLOAK_BASE_URL,
-        client_id=CLIENT_ID,
-        client_secret_key=CLIENT_SECRET,
-        realm_name=REALM,
-        verify=True
-    )
+    keycloak_admin = get_keycloak_admin()
 
     # Get all users with our specific attribute
     users = keycloak_admin.get_users({
