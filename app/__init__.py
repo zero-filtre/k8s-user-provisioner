@@ -9,7 +9,7 @@ from flask import Flask, request
 
 from app.utils import create_keycloak_user, apply_k8s_config, delete_keycloak_user, delete_k8s_namespace, \
     create_grafana_user, delete_grafana_user, make_username, make_usernames, get_provisioned_users, \
-    get_old_provisioned_users, delete_namespace_resources, generate_password, check_namespace_exists, get_grafana_user
+    get_old_provisioned_users, delete_namespace_resources, generate_password, check_namespace_exists, get_grafana_user, get_keycloak_admin
 
 app = Flask(__name__)
 logger = logging.getLogger(__name__)
@@ -130,6 +130,7 @@ with tracer.start_as_current_span("provisioner-flask-endpoint"):
                         logger.info(f"Reset namespace for user: {username}")
                         reset_namespaces.append(username)
                     except Exception as e:
+                        print(e)
                         logger.error(f"Failed to reset namespace for user {username}: {e}", exc_info=True)
                         failed_resets.append(username)
 

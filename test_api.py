@@ -4,13 +4,23 @@ import sys
 from datetime import datetime
 import time
 import os
+from dotenv import load_dotenv
+import yaml
+from kubernetes import client, config
+
+from app.utils import (
+    get_provisioned_users, get_grafana_user, check_namespace_exists,
+    create_keycloak_user, apply_k8s_config, create_grafana_user,
+    delete_keycloak_user, delete_k8s_namespace, delete_grafana_user,
+    delete_namespace_resources, get_old_provisioned_users
+)
 
 # Configuration
 
 load_dotenv("/vault/secrets/config")
 load_dotenv(".env")
 
-BASE_URL = "http://127.0.0.1:8000"  # Change this to your API URL
+BASE_URL = "http://localhost:8000"  # Change this to your API URL
 TOKEN = os.environ.get('VERIFICATION_TOKEN')
 
 def print_response(response):
@@ -23,8 +33,141 @@ def print_response(response):
         print("Response:", response.text)
     print("-" * 80)
 
+def verify_user_creation(username, email):
+    """Verify that a user was properly created in all systems"""
+    print("\n=== Verifying User Creation ===")
+    verification_results = {
+        'keycloak': False,
+        'kubernetes': False,
+        'grafana': False
+    }
+    
+    # Verify Keycloak user
+    users = get_provisioned_users()
+    for user in users:
+        if user.get('username') == username and user.get('email') == email:
+            verification_results['keycloak'] = True
+            break
+    
+    # Verify Kubernetes namespace
+    if check_namespace_exists(username):
+        verification_results['kubernetes'] = True
+    
+    # Verify Grafana user
+    try:
+        if get_grafana_user(username):
+            verification_results['grafana'] = True
+    except Exception as e:
+        print(f"Grafana user not found: {e}")
+    
+    print("Verification Results:")
+    print(json.dumps(verification_results, indent=2))
+    return all(verification_results.values())
+
+def verify_user_deletion(username):
+    """Verify that a user was properly deleted from all systems"""
+    print("\n=== Verifying User Deletion ===")
+    verification_results = {
+        'keycloak': True,
+        'kubernetes': True,
+        'grafana': True
+    }
+    
+    # Verify Keycloak user
+    users = get_provisioned_users()
+    for user in users:
+        if user.get('username') == username:
+            verification_results['keycloak'] = False
+            break
+    
+    # Verify Kubernetes namespace
+    if check_namespace_exists(username):
+        verification_results['kubernetes'] = False
+    
+    # Verify Grafana user
+    try:
+        if get_grafana_user(username):
+            verification_results['grafana'] = False
+    except Exception as e:
+        # If we get an exception, it means the user doesn't exist, which is what we want
+        pass
+    
+    print("Verification Results:")
+    print(json.dumps(verification_results, indent=2))
+    return all(verification_results.values())
+
+def create_test_configmap(username):
+    """Create a test ConfigMap in the user's namespace"""
+    config.load_kube_config_from_dict(
+        json.loads(os.environ.get('KUBE_CONFIG')))
+
+    with client.ApiClient() as api_client:
+        api_instance = client.CoreV1Api(api_client)
+        
+        configmap = client.V1ConfigMap(
+            metadata=client.V1ObjectMeta(
+                name="test-configmap",
+                namespace=username
+            ),
+            data={"test": "data"}
+        )
+        
+        try:
+            api_instance.create_namespaced_config_map(
+                namespace=username,
+                body=configmap
+            )
+            print(f"Created test ConfigMap in namespace {username}")
+            return True
+        except Exception as e:
+            print(f"Failed to create test ConfigMap: {e}")
+            return False
+
+def verify_namespace_reset(username):
+    """Verify that a namespace was properly reset by checking if the test ConfigMap still exists"""
+    print(f"\n=== Verifying Namespace Reset for {username} ===")
+    verification_results = {
+        'namespace_exists': False,
+        'configmap_deleted': False
+    }
+    
+    # Verify namespace still exists
+    if check_namespace_exists(username):
+        verification_results['namespace_exists'] = True
+        
+        # Check if test ConfigMap still exists
+        try:
+            config.load_kube_config_from_dict(
+                json.loads(os.environ.get('KUBE_CONFIG')))
+
+            with client.ApiClient() as api_client:
+                api_instance = client.CoreV1Api(api_client)
+                
+                try:
+                    # Try to get the test ConfigMap
+                    api_instance.read_namespaced_config_map(
+                        name="test-configmap",
+                        namespace=username
+                    )
+                    # If we get here, the ConfigMap still exists
+                    verification_results['configmap_deleted'] = False
+                    print(f"Test ConfigMap still exists in namespace {username}")
+                except client.exceptions.ApiException as e:
+                    if e.status == 404:
+                        # ConfigMap not found, which is what we want
+                        verification_results['configmap_deleted'] = True
+                    else:
+                        raise e
+                
+        except Exception as e:
+            print(f"Error checking ConfigMap: {e}")
+    
+    print("Verification Results:")
+    print(json.dumps(verification_results, indent=2))
+    return verification_results['namespace_exists'] and verification_results['configmap_deleted']
+
 def test_create_user(email, full_name):
-    """Test user creation"""
+    """Test user creation with verification"""
     print("\n=== Testing User Creation ===")
     url = f"{BASE_URL}/provisioner"
     headers = {
@@ -38,10 +181,33 @@ def test_create_user(email, full_name):
     
     response = requests.post(url, headers=headers, json=data)
     print_response(response)
-    return response.json() if response.status_code == 200 else None
+    
+    if response.status_code == 200:
+        user_data = response.json()
+        username = user_data.get('username')
+        
+        # Wait a bit for all systems to sync
+        time.sleep(5)
+        
+        # Create test ConfigMap
+        if create_test_configmap(username):
+            print("✓ Test ConfigMap created successfully")
+        else:
+            print("✗ Failed to create test ConfigMap")
+            return None
+        
+        # Verify user creation
+        if verify_user_creation(username, email):
+            print("✓ User creation verified successfully")
+        else:
+            print("✗ User creation verification failed")
+            return None
+            
+        return user_data
+    return None
 
 def test_delete_user(email, full_name):
-    """Test user deletion"""
+    """Test user deletion with verification"""
     print("\n=== Testing User Deletion ===")
     url = f"{BASE_URL}/provisioner"
     headers = {
@@ -55,10 +221,26 @@ def test_delete_user(email, full_name):
     
     response = requests.delete(url, headers=headers, json=data)
     print_response(response)
-    return response.json() if response.status_code == 200 else None
+    
+    if response.status_code == 200:
+        user_data = response.json()
+        username = user_data.get('username')
+        
+        # Wait a bit for all systems to sync
+        time.sleep(5)
+        
+        # Verify user deletion
+        if verify_user_deletion(username):
+            print("✓ User deletion verified successfully")
+        else:
+            print("✗ User deletion verification failed")
+            return None
+            
+        return user_data
+    return None
 
 def test_reset_namespaces():
-    """Test namespace reset"""
+    """Test namespace reset with verification"""
     print("\n=== Testing Namespace Reset ===")
     url = f"{BASE_URL}/reset"
     headers = {
@@ -68,10 +250,37 @@ def test_reset_namespaces():
     
     response = requests.post(url, headers=headers)
     print_response(response)
-    return response.json() if response.status_code == 200 else None
+    
+    if response.status_code == 200:
+        result = response.json()
+        
+        # Wait a bit for all systems to sync
+        time.sleep(5)
+        
+        # Get the test user's username from the last created user
+        users = get_provisioned_users()
+        if not users:
+            print("✗ No users found to verify reset")
+            return None
+            
+        test_user = users[-1]  # Get the last created user
+        username = test_user.get('username')
+        
+        if not username:
+            print("✗ Could not find test user's username")
+            return None
+            
+        # Verify namespace reset for the test user
+        if verify_namespace_reset(username):
+            print("✓ Namespace reset verified successfully")
+        else:
+            print("✗ Namespace reset verification failed")
+            
+        return result
+    return None
 
 def test_cleanup_old_users():
-    """Test cleanup of old users"""
+    """Test cleanup of old users with verification"""
     print("\n=== Testing Old Users Cleanup ===")
     url = f"{BASE_URL}/cleanup"
     headers = {
@@ -81,7 +290,28 @@ def test_cleanup_old_users():
     
     response = requests.post(url, headers=headers)
     print_response(response)
-    return response.json() if response.status_code == 200 else None
+    
+    if response.status_code == 200:
+        result = response.json()
+        
+        # Wait a bit for all systems to sync
+        time.sleep(5)
+        
+        # Verify user deletions
+        all_verified = True
+        for user in result.get('deleted_users', []):
+            username = user.get('username')
+            if not verify_user_deletion(username):
+                all_verified = False
+                print(f"✗ User deletion verification failed for {username}")
+        
+        if all_verified:
+            print("✓ All user deletions verified successfully")
+        else:
+            print("✗ Some user deletions failed verification")
+            
+        return result
+    return None
 
 def test_process():
     """Test the complete process:
