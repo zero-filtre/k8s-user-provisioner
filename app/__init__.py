@@ -118,7 +118,7 @@ with tracer.start_as_current_span("provisioner-flask-endpoint"):
 
         try:
             # Check if request has a body
-            if not request.is_json:
+            if not request.content_length or not request.is_json:
                 data = {}
             else:
                 data = request.get_json()
@@ -240,7 +240,7 @@ with tracer.start_as_current_span("provisioner-flask-endpoint"):
 
         try:
             # Check if request has a body
-            if not request.is_json:
+            if not request.content_length or not request.is_json:
                 data = {}
             else:
                 data = request.get_json()
