@@ -1,6 +1,7 @@
 import os
 import logging
 import json
+from datetime import datetime
 
 from opentelemetry import trace
 
@@ -116,11 +117,20 @@ with tracer.start_as_current_span("provisioner-flask-endpoint"):
             return {'message': 'Please submit a valid token'}, 401
 
         try:
+            data = request.get_json() or {}
+            target_username = data.get('username')
+            
             # Get all provisioned users from Keycloak
             users = get_provisioned_users()
             reset_namespaces = []
             failed_resets = []
      
+            # Filter users if a specific username is provided
+            if target_username:
+                users = [user for user in users if user.get('username') == target_username]
+                if not users:
+                    return {'message': f'No provisioned user found with username: {target_username}'}, 404
+            
             # Delete all resources in each namespace
             for user in users:
                 username = user.get('username')
@@ -134,8 +144,9 @@ with tracer.start_as_current_span("provisioner-flask-endpoint"):
                         logger.error(f"Failed to reset namespace for user {username}: {e}", exc_info=True)
                         failed_resets.append(username)
 
+            message = 'All provisioned namespaces have been reset successfully' if not target_username else f'Namespace for user {target_username} has been reset successfully'
             return {
-                'message': 'All provisioned namespaces have been reset successfully',
+                'message': message,
                 'users_processed': len(users),
                 'namespaces_reset': len(reset_namespaces),
                 'failed_resets': failed_resets
@@ -223,8 +234,20 @@ with tracer.start_as_current_span("provisioner-flask-endpoint"):
             return {'message': 'Please submit a valid token'}, 401
 
         try:
+            data = request.get_json() or {}
+            target_username = data.get('username')
+            
             # Get all provisioned users from Keycloak
             users = get_provisioned_users()
+            
+            print(target_username)
+            
+            # Filter users if a specific username is provided
+            if target_username:
+                users = [user for user in users if user.get('username') == target_username]
+                if not users:
+                    return {'message': f'No provisioned user found with username: {target_username}'}, 404
+            
             sync_results = {
                 'total_users': len(users),
                 'fixed_users': [],
@@ -241,9 +264,11 @@ with tracer.start_as_current_span("provisioner-flask-endpoint"):
                     # Check Grafana user
                     grafana_user = get_grafana_user(username)
                     needs_grafana = not grafana_user
+                    print(needs_grafana)
 
                     # Check Kubernetes namespace
                     needs_namespace = not check_namespace_exists(username)
+                    print(needs_namespace)
 
                     if needs_grafana or needs_namespace:
                         # Get user's password from Keycloak
@@ -252,8 +277,14 @@ with tracer.start_as_current_span("provisioner-flask-endpoint"):
                         
                         if needs_grafana:
                             try:
-                                # Create Grafana user with the same password
-                                create_grafana_user(username, email, user.get('credentials', [{}])[0].get('value', generate_password()))
+                                # Get user creation year from Keycloak
+                                created_timestamp = user.get('createdTimestamp', 0) / 1000  # Convert to seconds
+                                created_date = datetime.fromtimestamp(created_timestamp)
+                                creation_year = created_date.year
+                                
+                                # Create Grafana user with password based on creation year
+                                password = generate_password(username, creation_year)
+                                create_grafana_user(username, email, password)
                                 logger.info(f"Created missing Grafana user: {username}")
                             except Exception as e:
                                 logger.error(f"Failed to create Grafana user {username}: {e}", exc_info=True)
@@ -289,8 +320,9 @@ with tracer.start_as_current_span("provisioner-flask-endpoint"):
                         'error': str(e)
                     })
 
+            message = 'Sync completed for all users' if not target_username else f'Sync completed for user {target_username}'
             return {
-                'message': 'Sync completed',
+                'message': message,
                 'results': sync_results
             }
 

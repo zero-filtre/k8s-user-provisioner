@@ -3,6 +3,7 @@ import os
 import random
 import string
 import logging
+from datetime import datetime
 
 import yaml
 from dotenv import load_dotenv
@@ -23,9 +24,8 @@ grafana = GrafanaApi.from_url(
 )
 
 
-def generate_password(length=12):
-    characters = string.ascii_letters + string.digits
-    return ''.join(random.choice(characters) for _ in range(length))
+def generate_password(username, year):
+    return '{}@{}'.format(username, year)
 
 
 def get_keycloak_admin():
@@ -46,7 +46,8 @@ def get_keycloak_admin():
 
 def create_keycloak_user(username, email):
     keycloak_admin = get_keycloak_admin()
-    generated_password = generate_password()
+    current_year = datetime.now().year
+    generated_password = generate_password(username, current_year)
 
     user_data = {
         'email': email,
@@ -133,14 +134,15 @@ def delete_namespace_resources(username):
         json.loads(os.environ.get('KUBE_CONFIG')))
 
     with client.ApiClient() as api_client:
-        # Get all API resources
-        api_resources = api_client.get_api_resources()
+        # Get all API resources using the discovery API
+        v1 = client.CoreV1Api(api_client)
+        api_resources = v1.get_api_resources()
         deleted_resources = []
         failed_resources = []
 
         # Resources to exclude from deletion
         excluded_resources = ['resourcequota', 'rolebinding']
-
+        
         # For each namespaced resource, delete all instances in the namespace
         for resource in api_resources.resources:
             if resource.namespaced and resource.name.lower() not in excluded_resources:
@@ -148,10 +150,10 @@ def delete_namespace_resources(username):
                     # Construct the API path
                     if resource.group:
                         # For resources with API group
-                        api_path = f"/apis/{resource.group}/{resource.version}/namespaces/{username}/{resource.plural}"
+                        api_path = f"/apis/{resource.group}/{resource.version}/namespaces/{username}/{resource.name}"
                     else:
                         # For core resources
-                        api_path = f"/api/v1/namespaces/{username}/{resource.plural}"
+                        api_path = f"/api/v1/namespaces/{username}/{resource.name}"
 
                     # Delete all resources of this type in the namespace
                     api_call_kwargs = {
@@ -193,8 +195,13 @@ def delete_grafana_user(username):
     return True
 
 def get_grafana_user(username):
-    grafana_user = grafana.users.find_user(username)
-    return grafana_user
+    """Get Grafana user by username, returns None if user doesn't exist"""
+    try:
+        grafana_user = grafana.users.find_user(username)
+        return grafana_user
+    except Exception as e:
+        logger.debug(f"Grafana user {username} not found: {e}")
+        return None
 
 
 def make_username(email, full_name):
@@ -232,7 +239,8 @@ def get_provisioned_users():
 
     # Get all users with our specific attribute
     users = keycloak_admin.get_users({
-        'q': 'managed-by:k8s-provisioner'
+        'q': 'managed-by:k8s-provisioner',
+        "max": -1
     })
     
     # Filter users that have both required attributes

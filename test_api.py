@@ -9,10 +9,7 @@ import yaml
 from kubernetes import client, config
 
 from app.utils import (
-    get_provisioned_users, get_grafana_user, check_namespace_exists,
-    create_keycloak_user, apply_k8s_config, create_grafana_user,
-    delete_keycloak_user, delete_k8s_namespace, delete_grafana_user,
-    delete_namespace_resources, get_old_provisioned_users
+    get_provisioned_users, get_grafana_user, check_namespace_exists, delete_grafana_user, delete_k8s_namespace
 )
 
 # Configuration
@@ -20,7 +17,7 @@ from app.utils import (
 load_dotenv("/vault/secrets/config")
 load_dotenv(".env")
 
-BASE_URL = "http://localhost:8000"  # Change this to your API URL
+BASE_URL = "http://localhost:8080"  # Change this to your API URL
 TOKEN = os.environ.get('VERIFICATION_TOKEN')
 
 def print_response(response):
@@ -239,45 +236,33 @@ def test_delete_user(email, full_name):
         return user_data
     return None
 
-def test_reset_namespaces():
-    """Test namespace reset with verification"""
-    print("\n=== Testing Namespace Reset ===")
+def test_reset_namespaces(username):
+    """Test namespace reset with verification for a specific username"""
+    print(f"\n=== Testing Namespace Reset for {username} ===")
     url = f"{BASE_URL}/reset"
     headers = {
         'Authorization': TOKEN,
         'Content-Type': 'application/json'
     }
     
-    response = requests.post(url, headers=headers)
+    # Reset specific namespace
+    response = requests.post(url, headers=headers, json={'username': username})
     print_response(response)
     
     if response.status_code == 200:
-        result = response.json()
-        
         # Wait a bit for all systems to sync
         time.sleep(5)
         
-        # Get the test user's username from the last created user
-        users = get_provisioned_users()
-        if not users:
-            print("✗ No users found to verify reset")
-            return None
-            
-        test_user = users[-1]  # Get the last created user
-        username = test_user.get('username')
-        
-        if not username:
-            print("✗ Could not find test user's username")
-            return None
-            
-        # Verify namespace reset for the test user
+        # Verify namespace reset for the specific user
         if verify_namespace_reset(username):
-            print("✓ Namespace reset verified successfully")
+            print(f"✓ Namespace reset verified successfully for {username}")
+            return True
         else:
-            print("✗ Namespace reset verification failed")
-            
-        return result
-    return None
+            print(f"✗ Namespace reset verification failed for {username}")
+    else:
+        print("✗ Failed to reset specific namespace")
+    
+    return False
 
 def test_cleanup_old_users():
     """Test cleanup of old users with verification"""
@@ -318,6 +303,7 @@ def test_process():
     1. Create first user and delete it
     2. Create second user and reset namespaces
     3. Create third user and clean old users
+    4. Create fourth user and test sync
     """
     print("\n=== Testing Complete Process ===")
     
@@ -339,7 +325,7 @@ def test_process():
     
     if user2_data:
         print("\nResetting namespaces...")
-        test_reset_namespaces()
+        test_reset_namespaces(user2_data.get('username'))
     
     # Step 3: Create third user and clean old users
     print("\n3. Creating third user...")
@@ -351,16 +337,249 @@ def test_process():
         print("\nCleaning up old users...")
         test_cleanup_old_users()
     
+    # Step 4: Create fourth user and test sync
+    print("\n4. Creating fourth user...")
+    email4 = f"test4_{datetime.now().strftime('%Y%m%d_%H%M%S')}@example.com"
+    full_name4 = "Test User 4"
+    user4_data = test_create_user(email4, full_name4)
+    
+    if user4_data:
+        print("\nTesting sync...")
+        test_sync_user()
+    
     print("\n=== Process Completed ===")
     print("Created and deleted users:")
     print(f"1. {email1}")
     print(f"2. {email2}")
     print(f"3. {email3}")
+    print(f"4. {email4}")
+
+def test_sync_user():
+    """Test user sync functionality by:
+    1. Creating a user
+    2. Deleting their Grafana account and K8s namespace
+    3. Running sync for specific user
+    4. Verifying recreation of Grafana account and K8s namespace
+    """
+    print("\n=== Testing User Sync ===")
+    
+    # Step 1: Create a test user
+    email = f"test_sync_{datetime.now().strftime('%Y%m%d_%H%M%S')}@example.com"
+    full_name = "Test Sync User"
+    
+    print("\n1. Creating test user...")
+    user_data = test_create_user(email, full_name)
+    
+    if not user_data:
+        print("✗ Failed to create test user")
+        return False
+        
+    username = user_data.get('username')
+    print(f"✓ Test user created: {username}")
+    
+    # Step 2: Delete Grafana account and K8s namespace
+    print("\n2. Deleting Grafana account and K8s namespace...")
+    
+    # Delete Grafana user
+    try:
+        delete_grafana_user(username)
+        print("✓ Grafana account deleted")
+    except Exception as e:
+        print(f"✗ Failed to delete Grafana account: {e}")
+        return False
+    
+    # Delete K8s namespace
+    try:
+        delete_k8s_namespace(username)
+        print("✓ K8s namespace deleted")
+    except Exception as e:
+        print(f"✗ Failed to delete K8s namespace: {e}")
+        return False
+    
+    # Step 3: Run sync for specific user
+    print("\n3. Running sync for specific user...")
+    url = f"{BASE_URL}/sync"
+    headers = {
+        'Authorization': TOKEN,
+        'Content-Type': 'application/json'
+    }
+    
+    response = requests.post(url, headers=headers, json={'username': username})
+    print_response(response)
+    
+    if response.status_code != 200:
+        print("✗ Sync failed")
+        return False
+    
+    # Wait a bit for all systems to sync
+    time.sleep(5)
+    
+    # Step 4: Verify recreation
+    print("\n4. Verifying recreation...")
+    
+    # Verify Grafana user recreation
+    try:
+        grafana_user = get_grafana_user(username)
+        if grafana_user:
+            print("✓ Grafana account recreated")
+        else:
+            print("✗ Grafana account not recreated")
+            return False
+    except Exception as e:
+        print(f"✗ Failed to verify Grafana account: {e}")
+        return False
+    
+    # Verify K8s namespace recreation
+    if check_namespace_exists(username):
+        print("✓ K8s namespace recreated")
+    else:
+        print("✗ K8s namespace not recreated")
+        return False
+    
+    print("\n✓ Sync test completed successfully")
+    return True
+
+def test_user_lifecycle():
+    """Test the complete user lifecycle:
+    1. Create user and verify in all systems
+    2. Reset namespace and verify configmap deletion
+    3. Delete Grafana and K8s resources, then sync and verify recreation
+    4. Delete user and verify complete removal
+    """
+    print("\n=== Testing User Lifecycle ===")
+    results = {
+        'creation': {'success': False, 'details': {}},
+        'reset': {'success': False, 'details': {}},
+        'sync': {'success': False, 'details': {}},
+        'deletion': {'success': False, 'details': {}}
+    }
+    
+    # Step 1: Create user
+    print("\n1. Creating test user...")
+    email = f"test_lifecycle_{datetime.now().strftime('%Y%m%d_%H%M%S')}@example.com"
+    full_name = "Test Lifecycle User"
+    
+    user_data = test_create_user(email, full_name)
+    if not user_data:
+        print("✗ Failed to create test user")
+        return results
+    
+    username = user_data.get('username')
+    print(f"✓ Test user created: {username}")
+    
+    # Verify creation in all systems
+    print("\nVerifying user creation in all systems...")
+    if verify_user_creation(username, email):
+        print("✓ User verified in all systems")
+        results['creation']['success'] = True
+        results['creation']['details'] = {
+            'username': username,
+            'email': email
+        }
+    else:
+        print("✗ User verification failed")
+        return results
+    
+    # Step 2: Reset namespace
+    print("\n2. Resetting namespace...")
+    if test_reset_namespaces(username):
+        print("✓ Namespace reset successful")
+        results['reset']['success'] = True
+        results['reset']['details'] = {
+            'username': username
+        }
+    else:
+        print("✗ Namespace reset failed")
+        return results
+    
+    # Step 3: Delete Grafana and K8s resources, then sync
+    print("\n3. Testing sync functionality...")
+    
+    # Delete Grafana user and K8s namespace
+    try:
+        delete_grafana_user(username)
+        delete_k8s_namespace(username)
+        time.sleep(10)
+        print("✓ Resources deleted for sync test")
+    except Exception as e:
+        print(f"✗ Failed to delete resources: {e}")
+        return results
+    
+    # Run sync
+    url = f"{BASE_URL}/sync"
+    headers = {
+        'Authorization': TOKEN,
+        'Content-Type': 'application/json'
+    }
+    
+    response = requests.post(url, headers=headers, json={'username': username})
+    print_response(response)
+    
+    if response.status_code != 200:
+        print("✗ Sync failed")
+        return results
+    
+    # Wait for sync to complete
+    time.sleep(5)
+    
+    # Verify sync results
+    try:
+        grafana_user = get_grafana_user(username)
+        namespace_exists = check_namespace_exists(username)
+        
+        if grafana_user and namespace_exists:
+            print("✓ Resources recreated successfully")
+            results['sync']['success'] = True
+            results['sync']['details'] = {
+                'username': username,
+                'grafana_recreated': True,
+                'namespace_recreated': True
+            }
+        else:
+            print("✗ Resources not properly recreated")
+            return results
+    except Exception as e:
+        print(f"✗ Failed to verify sync results: {e}")
+        return results
+    
+    # Step 4: Delete user
+    print("\n4. Deleting user...")
+    if test_delete_user(email, full_name):
+        print("✓ User deletion successful")
+        results['deletion']['success'] = True
+        results['deletion']['details'] = {
+            'username': username,
+            'email': email
+        }
+    else:
+        print("✗ User deletion failed")
+        return results
+    
+    # Print final report
+    print("\n=== Test Results ===")
+    print(f"1. User Creation: {'✓' if results['creation']['success'] else '✗'}")
+    print(f"   - Username: {results['creation']['details'].get('username')}")
+    print(f"   - Email: {results['creation']['details'].get('email')}")
+    
+    print(f"\n2. Namespace Reset: {'✓' if results['reset']['success'] else '✗'}")
+    print(f"   - Username: {results['reset']['details'].get('username')}")
+    
+    print(f"\n3. Sync Test: {'✓' if results['sync']['success'] else '✗'}")
+    print(f"   - Username: {results['sync']['details'].get('username')}")
+    print(f"   - Grafana Recreated: {results['sync']['details'].get('grafana_recreated')}")
+    print(f"   - Namespace Recreated: {results['sync']['details'].get('namespace_recreated')}")
+    
+    print(f"\n4. User Deletion: {'✓' if results['deletion']['success'] else '✗'}")
+    print(f"   - Username: {results['deletion']['details'].get('username')}")
+    print(f"   - Email: {results['deletion']['details'].get('email')}")
+    
+    return results
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python test_api.py [create|delete|reset|cleanup|all|process]")
+        print("Usage: python test_api.py [create|delete|reset|cleanup|all|process|sync|lifecycle]")
         print("For create/delete, provide email and full_name as additional arguments")
+        print("For reset, provide username as additional argument")
         return
 
     command = sys.argv[1].lower()
@@ -378,36 +597,29 @@ def main():
         test_delete_user(sys.argv[2], sys.argv[3])
 
     elif command == "reset":
-        test_reset_namespaces()
+        if len(sys.argv) != 3:
+            print("Usage: python test_api.py reset <username>")
+            return
+        test_reset_namespaces(sys.argv[2])
 
     elif command == "cleanup":
         test_cleanup_old_users()
 
+    elif command == "sync":
+        test_sync_user()
+
+    elif command == "lifecycle":
+        test_user_lifecycle()
+
     elif command == "all":
         # Test all operations
         print("\n=== Running All Tests ===")
-        
-        # Create a test user
-        email = f"test_{datetime.now().strftime('%Y%m%d_%H%M%S')}@example.com"
-        full_name = "Test User"
-        
-        print("\n1. Creating test user...")
-        user_data = test_create_user(email, full_name)
-        
-        if user_data:
-            print("\n2. Resetting namespaces...")
-            test_reset_namespaces()
-            
-            print("\n3. Cleaning up old users...")
-            test_cleanup_old_users()
-            
-            print("\n4. Deleting test user...")
-            test_delete_user(email, full_name)
+        test_user_lifecycle()
 
     elif command == "process":
         test_process()
     else:
-        print("Invalid command. Use: create, delete, reset, cleanup, all, or process")
+        print("Invalid command. Use: create, delete, reset, cleanup, all, process, sync, or lifecycle")
 
 if __name__ == "__main__":
     main() 
