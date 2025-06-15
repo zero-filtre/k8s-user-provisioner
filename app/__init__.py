@@ -117,7 +117,12 @@ with tracer.start_as_current_span("provisioner-flask-endpoint"):
             return {'message': 'Please submit a valid token'}, 401
 
         try:
-            data = request.get_json() or {}
+            # Check if request has a body
+            if not request.is_json:
+                data = {}
+            else:
+                data = request.get_json()
+            
             target_username = data.get('username')
             
             # Get all provisioned users from Keycloak
@@ -234,7 +239,12 @@ with tracer.start_as_current_span("provisioner-flask-endpoint"):
             return {'message': 'Please submit a valid token'}, 401
 
         try:
-            data = request.get_json() or {}
+            # Check if request has a body
+            if not request.is_json:
+                data = {}
+            else:
+                data = request.get_json()
+            
             target_username = data.get('username')
             
             # Get all provisioned users from Keycloak
