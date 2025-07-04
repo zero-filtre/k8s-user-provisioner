@@ -25,10 +25,10 @@ def generate_password(length=12):
 
 
 def create_keycloak_user(username, email):
-    KEYCLOAK_BASE_URL = os.environ.get('KEYCLOAK_BASE_URL')
-    REALM = os.environ.get('KEYCLOAK_REALM')
-    CLIENT_ID = os.environ.get('KEYCLOAK_CLIENT_ID')
-    CLIENT_SECRET = os.environ.get('KEYCLOAK_CLIENT_SECRET')
+    KEYCLOAK_BASE_URL = "https://keycloak.zerofiltre.tech"
+    REALM = "master"
+    CLIENT_ID = "xxxxxxxxx"
+    CLIENT_SECRET = "yyyyyyyyyyyyyyyy"
 
     keycloak_admin = KeycloakAdmin(
         server_url=KEYCLOAK_BASE_URL,
