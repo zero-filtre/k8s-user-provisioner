@@ -8,7 +8,7 @@ from app.utils import create_keycloak_user, apply_k8s_config, delete_keycloak_us
 
 app = Flask(__name__)
 logger = logging.getLogger(__name__)
-
+logging.basicConfig(level=logging.INFO)
 
 @app.route('/')
 def home():
