@@ -1,9 +1,9 @@
 name: Python CI/CD Pipeline with k8s
 
 on:
-  pull_request:
+  push:
     branches: 
-      - main
+      - 'otlp*'
 
 jobs:
   build:
@@ -11,17 +11,11 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      KUBE_CONFIG : ${{ secrets.KUBE_CONFIG }}
-      env_name: ${{startsWith(github.ref, 'refs/heads/release-') && 'prod' || 'dev'}}
-      api_host : ${{startsWith(github.ref, 'refs/heads/release-') && 'provisioner.zerofiltre.tech' || 'provisioner-dev.zerofiltre.tech'}}
-      DOCKER_TAG_SUFFIX: ${{startsWith(github.ref, 'refs/heads/release-') && 'stable' || 'unstable'}}
-      replicas : ${{startsWith(github.ref, 'refs/heads/release-') && 1 || 1 }}
-      requests_cpu : ${{startsWith(github.ref, 'refs/heads/release-') && 0.1 || 0.1 }}
-      requests_memory : ${{startsWith(github.ref, 'refs/heads/release-') && '0.5Gi' || '0.5Gi' }}
-      limits_cpu : ${{startsWith(github.ref, 'refs/heads/release-') && 0.5 || 0.5 }}
-      limits_memory : ${{startsWith(github.ref, 'refs/heads/release-') && '1.5Gi' || '1Gi' }}
-      domain_name : ${{startsWith(github.ref, 'refs/heads/release-') && 'provisioner.zerofiltre.tech' || 'provisioner-dev.zerofiltre.tech'}}
-      
+      tag_number: ${{ github.run_number }}
+      username: ${{ secrets.DOCKER_HUB_USERNAME }}
+      password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+      namespace: ${{ secrets.K8S_USERNAME }}
+
     steps:
     - name: Checkout
       uses: actions/checkout@v3
@@ -30,7 +24,7 @@ jobs:
       uses: docker/setup-buildx-action@v1
 
     - name: Cache Docker layers
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: /tmp/.buildx-cache
         key: ${{ runner.os }}-buildx-${{ github.sha }}
@@ -40,34 +34,19 @@ jobs:
     - name: Docker Login
       uses: docker/login-action@v2.1.0
       with:
-        username: ${{ secrets.DOCKER_HUB_USERNAME }}
-        password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+          username: ${{ env.username }}
+          password: ${{ env.password }}
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
-
-    - name: Cache Docker layers
-      uses: actions/cache@v2
-      with:
-        path: /tmp/.buildx-cache
-        key: ${{ runner.os }}-buildx-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-buildx-
-    - name: Docker Login
-      uses: docker/login-action@v2.1.0
-      with:
-        username: ${{ secrets.DOCKER_HUB_USERNAME }}
-        password: ${{ secrets.DOCKER_HUB_PASSWORD }}
 
     - name: Build and push
       uses: docker/build-push-action@v2
       with:
         context: .
         push: true
-        tags: imzerofiltre/zerofiltretech-provisioner:${{ github.run_number }}_${{ env.DOCKER_TAG_SUFFIX }}
+        tags:  ${{ env.username }}/zerofiltretech-provisioner:${{ env.tag_number }}
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache-new
-        build-args: PROFILE=${{ env.env_name }}
+        
 
     - name: Set up kubectl
       uses: tale/kubectl-action@v1
@@ -76,40 +55,19 @@ jobs:
 
     - name: Set up k8s manifest
       run: |
-        envsubst < microservice.yaml > k8s.yml
-        cat k8s.yml
-        
+        envsubst < microservice.yaml > k8s.yaml
+        cat k8s.yaml
+
     - name: Deploy to k8s
       run: |
-        kubectl apply -f k8s.yml
-        kubectl set image deployment/zerofiltretech-provisioner-${{ env.env_name }} zerofiltretech-provisioner-${{ env.env_name }}=imzerofiltre/zerofiltretech-provisioner:${{ github.run_number }}_${{ env.DOCKER_TAG_SUFFIX }} -n zerofiltretech-${{ env.env_name }}
-        kubectl annotate deployment zerofiltretech-provisioner-${{ env.env_name }} kubernetes.io/change-cause="version change to: ${{ github.run_number }}_${{ env.DOCKER_TAG_SUFFIX }} " -n zerofiltretech-${{ env.env_name }} --overwrite=true
-        if ! kubectl rollout status -w deployment/zerofiltretech-provisioner-${{ env.env_name }} -n zerofiltretech-${{ env.env_name }}; then
-              kubectl rollout undo deployment.v1.apps/zerofiltretech-provisioner-${{ env.env_name }} -n zerofiltretech-${{ env.env_name }}
-              kubectl rollout status deployment/zerofiltretech-provisioner-${{ env.env_name }} -n zerofiltretech-${{ env.env_name }}
+        kubectl apply -f k8s.yaml
+        kubectl annotate deployment zerofiltretech-provisioner kubernetes.io/change-cause="version change to: ${{ env.tag_number }} " -n ${{ env.namespace }} --overwrite=true
+        if ! kubectl rollout status -w deployment/zerofiltretech-provisioner -n ${{ env.namespace }}; then
+              kubectl rollout undo deployment.v1.apps/zerofiltretech-provisioner -n ${{ env.namespace }}
+              kubectl rollout status deployment/zerofiltretech-provisioner -n ${{ env.namespace }}
               exit 1
         fi
-        
-    - name: Get commit author email
-      if: ${{ failure() }}
-      run: |
-        COMMIT_AUTHOR_EMAIL=$(git log -1 --pretty=format:'%ae')
-        echo "COMMIT_AUTHOR_EMAIL=$COMMIT_AUTHOR_EMAIL" >> $GITHUB_ENV
-      
-    - name: Send email on failure
-      uses: dawidd6/action-send-mail@v2.5.0
-      with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: "Workflow failed on ${{ github.repository }}/${{ github.head_ref }} (commit ${{ github.sha }})"
-          body: |
-            Workflow failed on ${{ github.repository }}/${{ github.head_ref }} (commit ${{ github.sha }}). \nSee the workflow run log for more details: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          from: "GitHub Actions <${{ vars.EMAIL_FROM }}>"
-          to: ${{ env.COMMIT_AUTHOR_EMAIL }}
-      if: ${{ failure() }}
- 
+
     - name: Move cache
       run: |
         rm -rf /tmp/.buildx-cache
